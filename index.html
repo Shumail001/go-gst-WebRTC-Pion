@@ -1,0 +1,265 @@
+<!--<!DOCTYPE html>-->
+<!--<html>-->
+<!--<head>-->
+<!--    <title>WebRTC GStreamer Receiver</title>-->
+<!--    <style>-->
+<!--        body {-->
+<!--            font-family: Arial, sans-serif;-->
+<!--            max-width: 800px;-->
+<!--            margin: 0 auto;-->
+<!--            padding: 20px;-->
+<!--        }-->
+<!--        textarea {-->
+<!--            width: 100%;-->
+<!--            height: 150px;-->
+<!--            margin-bottom: 10px;-->
+<!--        }-->
+<!--        button {-->
+<!--            padding: 10px 15px;-->
+<!--            background-color: #4CAF50;-->
+<!--            color: white;-->
+<!--            border: none;-->
+<!--            cursor: pointer;-->
+<!--        }-->
+<!--        button:hover {-->
+<!--            background-color: #45a049;-->
+<!--        }-->
+<!--        #videoContainer {-->
+<!--            margin-top: 20px;-->
+<!--        }-->
+<!--    </style>-->
+<!--</head>-->
+<!--<body>-->
+<!--<h1>WebRTC GStreamer Receiver</h1>-->
+
+<!--<div>-->
+<!--    <label for="offer">Paste the offer from the Go application:</label><br>-->
+<!--    <textarea id="offer" placeholder="Paste the base64 offer here..."></textarea>-->
+<!--</div>-->
+
+<!--<button id="startButton">Start Session</button>-->
+
+<!--<div id="videoContainer">-->
+<!--    <video id="video" autoplay playsinline controls></video>-->
+<!--</div>-->
+
+<!--<script>-->
+<!--    const startButton = document.getElementById('startButton');-->
+<!--    const offerTextarea = document.getElementById('offer');-->
+<!--    const videoElement = document.getElementById('video');-->
+
+<!--    startButton.addEventListener('click', async () => {-->
+<!--        const offer = offerTextarea.value.trim();-->
+<!--        if (!offer) {-->
+<!--            alert('Please paste the offer first');-->
+<!--            return;-->
+<!--        }-->
+
+<!--        try {-->
+<!--            // Create a new RTCPeerConnection-->
+<!--            const pc = new RTCPeerConnection({-->
+<!--                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]-->
+<!--            });-->
+
+<!--            // Set up event handlers-->
+<!--            pc.oniceconnectionstatechange = () => {-->
+<!--                console.log('ICE connection state:', pc.iceConnectionState);-->
+<!--            };-->
+
+<!--            pc.onicecandidate = (event) => {-->
+<!--                if (event.candidate === null) {-->
+<!--                    console.log('ICE gathering complete');-->
+<!--                }-->
+<!--            };-->
+
+<!--            pc.ontrack = (event) => {-->
+<!--                console.log('Received track:', event.track.kind);-->
+<!--                if (event.track.kind === 'video') {-->
+<!--                    videoElement.srcObject = event.streams[0];-->
+<!--                }-->
+<!--            };-->
+
+<!--            // Decode the offer-->
+<!--            const decodedOffer = JSON.parse(atob(offer));-->
+<!--            await pc.setRemoteDescription(decodedOffer);-->
+
+<!--            // Create and set the answer-->
+<!--            const answer = await pc.createAnswer();-->
+<!--            await pc.setLocalDescription(answer);-->
+
+<!--            // Send the answer back to the Go application-->
+<!--            const encodedAnswer = btoa(JSON.stringify(answer));-->
+
+<!--            // Send the answer to the Go server-->
+<!--            const response = await fetch('http://localhost:8080', {-->
+<!--                method: 'POST',-->
+<!--                body: encodedAnswer,-->
+<!--                headers: {-->
+<!--                    'Content-Type': 'text/plain'-->
+<!--                }-->
+<!--            });-->
+
+<!--            if (!response.ok) {-->
+<!--                throw new Error('Failed to send answer to server');-->
+<!--            }-->
+
+<!--            console.log('WebRTC session established');-->
+
+<!--        } catch (error) {-->
+<!--            console.error('Error:', error);-->
+<!--            alert('Error: ' + error.message);-->
+<!--        }-->
+<!--    });-->
+<!--</script>-->
+<!--</body>-->
+<!--</html>-->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC GStreamer Receiver</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        #video { width: 100%; background: #000; }
+        #status { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+        button { padding: 10px 15px; background: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:hover { background: #45a049; }
+        button:disabled { background: #cccccc; }
+    </style>
+</head>
+<body>
+<h1>WebRTC GStreamer Receiver</h1>
+<div id="status">Disconnected</div>
+<button id="startBtn">Start Stream</button>
+<div>
+    <video id="video" autoplay playsinline controls></video>
+</div>
+
+<script>
+    const statusDiv = document.getElementById('status');
+    const startBtn = document.getElementById('startBtn');
+    const videoElement = document.getElementById('video');
+
+    let ws;
+    let pc;
+
+    startBtn.addEventListener('click', async () => {
+        startBtn.disabled = true;
+        statusDiv.textContent = "Connecting...";
+
+        try {
+            // Create WebSocket connection
+            ws = new WebSocket(`ws://${window.location.hostname}:8080/ws`);
+
+            // Create RTCPeerConnection
+            pc = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+
+            // Set up event handlers
+            pc.oniceconnectionstatechange = () => {
+                statusDiv.textContent = `ICE state: ${pc.iceConnectionState}`;
+                console.log('ICE state:', pc.iceConnectionState);
+            };
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    ws.send(JSON.stringify({
+                        type: 'candidate',
+                        data: event.candidate.candidate
+                    }));
+                }
+            };
+
+            pc.ontrack = (event) => {
+                console.log('Received track:', event.track.kind);
+                console.log("Event is : ", event)
+                if (event.track.kind === 'video') {
+                    videoElement.srcObject = event.streams[0];
+                } else if (event.track.kind === 'audio') {
+                    // You could add an audio element here if needed
+                }
+            };
+
+            // Set up WebSocket handlers
+            ws.onmessage = async (event) => {
+                const message = JSON.parse(event.data);
+
+                if (message.type === 'offer') {
+                    statusDiv.textContent = "Received offer, creating answer...";
+
+                    await pc.setRemoteDescription({
+                        type: 'offer',
+                        sdp: message.data
+                    });
+
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+
+                    ws.send(JSON.stringify({
+                        type: 'answer',
+                        data: answer.sdp
+                    }));
+                }
+                else if (message.type === 'candidate') {
+                    try {
+                        await pc.addIceCandidate({
+                            candidate: message.data,
+                            sdpMid: '0',
+                            sdpMLineIndex: 0
+                        });
+                    } catch (e) {
+                        console.error('Error adding ICE candidate:', e);
+                    }
+                }
+            };
+
+            ws.onopen = () => {
+                statusDiv.textContent = "Connected, waiting for offer...";
+            };
+
+            ws.onclose = () => {
+                statusDiv.textContent = "Disconnected";
+                startBtn.disabled = false;
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                statusDiv.textContent = "Connection error";
+                startBtn.disabled = false;
+            };
+
+        } catch (error) {
+            console.error('Error:', error);
+            statusDiv.textContent = `Error: ${error.message}`;
+            startBtn.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>

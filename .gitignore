@@ -1,0 +1,33 @@
+./go.mod
+
+# Go binary executables
+/bin/
+/obj/
+
+# Dependency directories
+/vendor/
+
+# Go workspace files
+*.vscode/
+.idea/
+
+# Go build files
+*.out
+*.exe
+*.test
+
+# Go module cache
+.go/
+
+# Local go tools
+*.log
+
+
+
+# VS Code
+.vscode/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
