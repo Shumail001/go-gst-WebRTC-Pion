@@ -1,5 +1,10 @@
 ./go.mod
 
+# Ignore Go module files
+go.mod
+go.sum
+
+
 # Go binary executables
 /bin/
 /obj/
